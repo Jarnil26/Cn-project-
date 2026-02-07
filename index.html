@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIDS Implementation Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+        
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .terminal-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        .network-node {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .network-node:hover {
+            transform: scale(1.1);
+            filter: brightness(1.2);
+        }
+
+        .status-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .log-entry {
+            border-left: 3px solid transparent;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .alert-bg { background-color: rgba(239, 68, 68, 0.1); border-left-color: #ef4444; }
+        .info-bg { background-color: rgba(59, 130, 246, 0.1); border-left-color: #3b82f6; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-700 p-4 flex justify-between items-center shadow-2xl">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04m12.892 7.781l1.431 1.432a2 2 0 01-2.828 2.828l-1.432-1.431M19 11a8 8 0 11-16 0 8 8 0 0116 0z" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">NIDS Implementation Project</h1>
+                <p class="text-xs text-slate-400 uppercase tracking-widest">Network Intrusion Detection System • v2.0</p>
+            </div>
+        </div>
+        <div class="flex gap-4">
+            <div class="text-right hidden md:block">
+                <p class="text-xs text-slate-400">System Status</p>
+                <p class="text-sm font-semibold text-green-400 flex items-center gap-1">
+                    <span class="h-2 w-2 bg-green-400 rounded-full status-pulse"></span> ACTIVE & PROTECTED
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <nav class="w-64 bg-slate-900 border-r border-slate-800 p-4 flex flex-col gap-2">
+            <button onclick="switchTab('topology')" class="tab-btn active-tab flex items-center gap-3 p-3 rounded-lg bg-slate-800 text-white w-full text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" /></svg>
+                Topology Control
+            </button>
+            <button onclick="switchTab('glossary')" class="tab-btn flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800 text-slate-400 w-full text-left transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.994 7.994 0 0114 3a7.994 7.994 0 015 1.804v10.592a.8.8 0 01-1.2.692 5.994 5.994 0 00-7.6 0 .8.8 0 01-1.2-.692V4.804zM2 15.396a.8.8 0 01-1.2-.692V4.102a.8.8 0 011.2-.692 5.994 5.994 0 007.6 0 .8.8 0 011.2.692v10.592a.8.8 0 01-1.2.692 5.994 5.994 0 00-7.6 0z" /></svg>
+                Glossary & Info
+            </button>
+            <div class="mt-auto pt-4 border-t border-slate-800">
+                <div class="bg-slate-950 p-3 rounded-lg">
+                    <p class="text-[10px] text-slate-500 uppercase font-bold mb-2">Active Signatures</p>
+                    <div class="flex flex-wrap gap-1">
+                        <span class="px-2 py-0.5 bg-blue-900/40 text-blue-400 text-[10px] rounded border border-blue-800">SIG 2004</span>
+                        <span class="px-2 py-0.5 bg-amber-900/40 text-amber-400 text-[10px] rounded border border-amber-800">SIG 2001</span>
+                        <span class="px-2 py-0.5 bg-red-900/40 text-red-400 text-[10px] rounded border border-red-800">SIG 3040</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col p-6 gap-6 bg-slate-950 overflow-y-auto">
+            
+            <!-- Dashboard Stats -->
+            <div id="stats-panel" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Total Traffic</p>
+                    <p id="stat-traffic" class="text-2xl font-bold terminal-font">0</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">ICMP Packets</p>
+                    <p id="stat-icmp" class="text-2xl font-bold text-blue-400 terminal-font">0</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg border-l-4 border-l-red-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">IDS Alerts</p>
+                    <p id="stat-alerts" class="text-2xl font-bold text-red-500 terminal-font">0</p>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-lg">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">Uptime</p>
+                    <p id="stat-uptime" class="text-2xl font-bold text-slate-300 terminal-font">00:00:00</p>
+                </div>
+            </div>
+
+            <!-- Tab: Topology -->
+            <div id="tab-topology" class="flex-1 flex flex-col gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Network Visualizer -->
+                    <div class="lg:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
+                        <div class="absolute top-4 left-4 z-10">
+                            <h2 class="text-sm font-bold bg-slate-950/80 px-3 py-1 rounded-full border border-slate-700">LIVE TOPOLOGY MAP</h2>
+                        </div>
+                        <div class="p-8 h-[450px] flex items-center justify-center relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
+                            <!-- SVG Connections Layer -->
+                            <svg id="network-lines" class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+                            
+                            <!-- Router 0 (The IDS Gateway) -->
+                            <div id="router0" class="network-node absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                                <div class="bg-slate-800 p-4 rounded-lg border-2 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                                    <svg class="w-10 h-10 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="2" /><path d="M17 12h.01M13 12h.01M9 12h.01" /></svg>
+                                </div>
+                                <p class="text-[10px] text-center mt-1 font-bold">ROUTER 0 (IDS)</p>
+                                <p class="text-[9px] text-center text-slate-500">192.168.1.1</p>
+                            </div>
+
+                            <!-- Network 1 -->
+                            <div class="absolute top-10 left-10">
+                                <div id="net1-node" class="network-node group relative">
+                                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                        <svg class="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                    </div>
+                                    <span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition">LAN 1: 192.168.1.0/24</span>
+                                </div>
+                            </div>
+
+                            <!-- Network 2 -->
+                            <div class="absolute bottom-10 left-10">
+                                <div id="net2-node" class="network-node group relative">
+                                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                                        <svg class="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                    </div>
+                                    <span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition">LAN 2: 192.168.10.0/24</span>
+                                </div>
+                            </div>
+
+                            <!-- Syslog Server -->
+                            <div class="absolute top-10 right-10">
+                                <div id="syslog-node" class="network-node group relative">
+                                    <div class="bg-slate-800 p-3 rounded-lg border-2 border-green-500/50">
+                                        <svg class="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" /></svg>
+                                    </div>
+                                    <span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition">SYSLOG SERVER</span>
+                                </div>
+                            </div>
+
+                             <!-- External Intruder Simulation Node -->
+                             <div class="absolute bottom-10 right-10">
+                                <div id="intruder-node" class="network-node group relative">
+                                    <div class="bg-red-950 p-3 rounded-lg border-2 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+                                        <svg class="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                    </div>
+                                    <span class="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition text-red-400">EXTERNAL TRAFFIC</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interaction Panel -->
+                    <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-xl flex flex-col gap-4">
+                        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2">Simulator Controls</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-slate-500 block mb-2 uppercase">Traffic Source</label>
+                                <select id="source-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-slate-300 outline-none focus:border-blue-500">
+                                    <option value="net2">Network 2 (192.168.10.x)</option>
+                                    <option value="external">External Attacker (100.50.0.x)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="text-xs text-slate-500 block mb-2 uppercase">Action / Protocol</label>
+                                <div class="grid grid-cols-1 gap-2">
+                                    <button onclick="simulateTraffic('icmp-ping')" class="bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                        Send ICMP Ping
+                                    </button>
+                                    <button onclick="simulateTraffic('http-request')" class="bg-slate-800 hover:bg-slate-700 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+                                        HTTP Get Request
+                                    </button>
+                                    <button onclick="simulateTraffic('ftp-login')" class="bg-slate-800 hover:bg-slate-700 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                        FTP File Upload
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-slate-800">
+                                <label class="text-xs text-slate-500 block mb-2 uppercase">IDS Status</label>
+                                <div class="flex items-center justify-between bg-slate-950 p-3 rounded-lg border border-slate-800">
+                                    <span class="text-xs font-mono">SIG 2004 ENABLED</span>
+                                    <div class="w-10 h-5 bg-green-500 rounded-full relative">
+                                        <div class="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Syslog Terminal -->
+                <div class="flex-1 min-h-[300px] bg-slate-950 rounded-2xl border border-slate-800 shadow-xl overflow-hidden flex flex-col">
+                    <div class="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <span class="h-2 w-2 bg-red-500 rounded-full status-pulse"></span>
+                            Syslog Real-Time Output (Monitor)
+                        </span>
+                        <button onclick="clearLogs()" class="text-[10px] text-slate-500 hover:text-white transition uppercase font-bold">Clear Terminal</button>
+                    </div>
+                    <div id="syslog-terminal" class="p-4 flex-1 overflow-y-auto terminal-font text-sm space-y-1">
+                        <div class="text-slate-500 text-xs italic">[SYSTEM INITIALIZING] Loading IPS Rules...</div>
+                        <div class="text-green-500 text-xs">[SUCCESS] Security Package 'securityk9' active.</div>
+                        <div class="text-green-500 text-xs">[SUCCESS] Monitoring interface GigabitEthernet0/0.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Glossary -->
+            <div id="tab-glossary" class="hidden flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                    <h2 class="text-xl font-bold mb-4 text-blue-400">Technical Glossary</h2>
+                    <div class="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-sm font-bold text-slate-200">NIDS</span>
+                            <p class="text-xs text-slate-400">Intrusion detection systems which detect attacks by capturing and analyzing network packets at a network level.</p>
+                        </div>
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-sm font-bold text-slate-200">HIDS</span>
+                            <p class="text-xs text-slate-400">IDS which is setup at host level to monitor activity on specific operating systems.</p>
+                        </div>
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-sm font-bold text-slate-200">DoS</span>
+                            <p class="text-xs text-slate-400">A type of attack which disrupts the services of another machine by flooding traffic.</p>
+                        </div>
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-sm font-bold text-slate-200">IP vs MAC</span>
+                            <p class="text-xs text-slate-400">IP address are logical addresses used to identify destinations. MAC addresses are physical addresses built into the NIC.</p>
+                        </div>
+                        <div class="border-b border-slate-800 pb-2">
+                            <span class="text-sm font-bold text-slate-200">Signature 2004</span>
+                            <p class="text-xs text-slate-400">ICMP Echo Request trigger. Detects when a protocol field is set to 1 (ICMP) and type is 8 (Echo Request).</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                    <h2 class="text-xl font-bold mb-4 text-blue-400">Project Overview</h2>
+                    <div class="prose prose-invert prose-sm">
+                        <p class="text-slate-400">This implementation demonstrates a Network Intrusion Detection System (NIDS) as configured in the <strong>Cisco Packet Tracer</strong> environment but ported to a web-based simulation.</p>
+                        <h4 class="text-slate-200 mt-4">Core Specifications:</h4>
+                        <ul class="text-xs text-slate-400 list-disc pl-4 space-y-2">
+                            <li><strong>Detection:</strong> Scans incoming ICMP traffic entering through the Gateway Router.</li>
+                            <li><strong>Reporting:</strong> Logs all suspicious activities to a dedicated SYSLOG server (192.168.1.5).</li>
+                            <li><strong>Security:</strong> Powered by the <code>securityk9</code> package on Cisco 1941 ISR.</li>
+                        </ul>
+                        <div class="mt-6 p-4 bg-slate-950 rounded-lg border border-slate-800">
+                            <p class="text-xs font-bold text-amber-500 mb-2">IDS CAN:</p>
+                            <p class="text-[10px] text-slate-500 uppercase leading-relaxed">Recognize alterations, detect active attacks, detect config errors.</p>
+                            <p class="text-xs font-bold text-red-500 mt-4 mb-2">IDS CAN NOT:</p>
+                            <p class="text-[10px] text-slate-500 uppercase leading-relaxed">Stop the attack (Requires IPS), analyze encrypted traffic easily, analyze busy networks without hardware limits.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Message Overlay -->
+    <div id="message-box" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 transform scale-0 transition-all">
+        <div class="bg-blue-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-3">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span id="message-text">Packet Dispatched</span>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        let stats = {
+            traffic: 0,
+            icmp: 0,
+            alerts: 0,
+            startTime: Date.now()
+        };
+
+        const logs = document.getElementById('syslog-terminal');
+        const router = document.getElementById('router0');
+        const syslogServer = document.getElementById('syslog-node');
+        
+        // Configuration
+        const SIG_ICMP = "2004";
+        const SIGNATURES = {
+            "2004": { name: "ICMP Echo Request", severity: "Info", action: "Alert" },
+            "3040": { name: "TCP Flag Anomaly", severity: "Attack", action: "Block" },
+            "2001": { name: "ICMP Host Unreachable", severity: "Warning", action: "Alert" }
+        };
+
+        function initNetworkMap() {
+            const svg = document.getElementById('network-lines');
+            const nodes = [
+                {id: 'net1-node', color: '#475569'},
+                {id: 'net2-node', color: '#475569'},
+                {id: 'syslog-node', color: '#10b981'},
+                {id: 'intruder-node', color: '#ef4444'}
+            ];
+
+            const r0 = document.getElementById('router0').getBoundingClientRect();
+            const parent = svg.getBoundingClientRect();
+            
+            nodes.forEach(node => {
+                const el = document.getElementById(node.id).getBoundingClientRect();
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", el.left - parent.left + el.width/2);
+                line.setAttribute("y1", el.top - parent.top + el.height/2);
+                line.setAttribute("x2", r0.left - parent.left + r0.width/2);
+                line.setAttribute("y2", r0.top - parent.top + r0.height/2);
+                line.setAttribute("stroke", node.color);
+                line.setAttribute("stroke-width", "2");
+                line.setAttribute("stroke-dasharray", "5,5");
+                line.setAttribute("opacity", "0.3");
+                svg.appendChild(line);
+            });
+        }
+
+        function simulateTraffic(type) {
+            const source = document.getElementById('source-select').value;
+            const sourceEl = document.getElementById(source === 'net2' ? 'net2-node' : 'intruder-node');
+            const targetEl = document.getElementById('router0');
+            
+            stats.traffic++;
+            updateStats();
+
+            // Visual Packet Animation
+            createPacketVisual(sourceEl, targetEl, type);
+
+            // IDS Logic
+            setTimeout(() => {
+                const timestamp = new Date().toLocaleTimeString();
+                const srcIp = source === 'net2' ? '192.168.10.45' : '100.50.0.12';
+                
+                if (type === 'icmp-ping') {
+                    stats.icmp++;
+                    stats.alerts++;
+                    
+                    addLogEntry(
+                        `%IPS-4-SIGNATURE: Sig:2004 Subsig:0 [ICMP Echo Request] ${srcIp} -> 192.168.1.1`,
+                        'alert'
+                    );
+                    
+                    // Alert visual on router
+                    router.classList.add('border-red-500', 'shadow-[0_0_30px_rgba(239,68,68,0.5)]');
+                    setTimeout(() => router.classList.remove('border-red-500', 'shadow-[0_0_30px_rgba(239,68,68,0.5)]'), 1000);
+                    
+                    // Sending to Syslog server visual
+                    createPacketVisual(targetEl, syslogServer, 'alert-packet');
+                } else if (type === 'http-request') {
+                    addLogEntry(`HTTP GET from ${srcIp} to Web Server 100.50.0.2 - ALLOWED`, 'info');
+                } else if (type === 'ftp-login') {
+                    addLogEntry(`FTP Auth Request from ${srcIp} user 'harsh' - SESSION ESTABLISHED`, 'info');
+                }
+                updateStats();
+            }, 800);
+        }
+
+        function createPacketVisual(startEl, endEl, type) {
+            const startRect = startEl.getBoundingClientRect();
+            const endRect = endEl.getBoundingClientRect();
+            const parent = document.body.getBoundingClientRect();
+
+            const packet = document.createElement('div');
+            packet.className = `fixed z-40 w-3 h-3 rounded-full shadow-lg pointer-events-none transition-all duration-700 ease-in-out`;
+            packet.style.backgroundColor = type === 'icmp-ping' || type === 'alert-packet' ? '#ef4444' : '#3b82f6';
+            packet.style.left = `${startRect.left + startRect.width/2}px`;
+            packet.style.top = `${startRect.top + startRect.height/2}px`;
+            
+            document.body.appendChild(packet);
+
+            // Animate
+            requestAnimationFrame(() => {
+                packet.style.left = `${endRect.left + endRect.width/2}px`;
+                packet.style.top = `${endRect.top + endRect.height/2}px`;
+                packet.style.transform = `scale(0.5)`;
+                packet.style.opacity = `0`;
+            });
+
+            setTimeout(() => packet.remove(), 700);
+        }
+
+        function addLogEntry(text, type) {
+            const entry = document.createElement('div');
+            const ts = new Date().toISOString().split('T')[1].split('Z')[0];
+            entry.className = `log-entry p-2 rounded text-xs mb-1 ${type === 'alert' ? 'alert-bg text-red-400 font-bold' : 'info-bg text-slate-300'}`;
+            entry.innerHTML = `<span class="text-slate-500 mr-2">[${ts}]</span> ${text}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function updateStats() {
+            document.getElementById('stat-traffic').innerText = stats.traffic;
+            document.getElementById('stat-icmp').innerText = stats.icmp;
+            document.getElementById('stat-alerts').innerText = stats.alerts;
+        }
+
+        function updateUptime() {
+            const diff = Math.floor((Date.now() - stats.startTime) / 1000);
+            const h = String(Math.floor(diff / 3600)).padStart(2, '0');
+            const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0');
+            const s = String(diff % 60).padStart(2, '0');
+            document.getElementById('stat-uptime').innerText = `${h}:${m}:${s}`;
+        }
+
+        function switchTab(tabId) {
+            document.getElementById('tab-topology').classList.add('hidden');
+            document.getElementById('tab-glossary').classList.add('hidden');
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-slate-800', 'text-white');
+                btn.classList.add('text-slate-400');
+            });
+            event.currentTarget.classList.add('bg-slate-800', 'text-white');
+            event.currentTarget.classList.remove('text-slate-400');
+        }
+
+        function clearLogs() {
+            logs.innerHTML = '<div class="text-slate-500 text-xs italic">[LOGS CLEARED] Monitor ongoing...</div>';
+        }
+
+        function showMessage(text) {
+            const box = document.getElementById('message-box');
+            document.getElementById('message-text').innerText = text;
+            box.classList.remove('scale-0');
+            setTimeout(() => box.classList.add('scale-0'), 2000);
+        }
+
+        // Initial Setup
+        window.onload = () => {
+            initNetworkMap();
+            setInterval(updateUptime, 1000);
+            window.addEventListener('resize', () => {
+                document.getElementById('network-lines').innerHTML = '';
+                initNetworkMap();
+            });
+        };
+    </script>
+</body>
+</html>
